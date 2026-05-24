@@ -2,6 +2,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'lzdockel-core)
 (require 'lzdockel-container)
 (require 'lzdockel-image)
@@ -25,6 +26,17 @@
 (defvar lzdockel-dashboard-section-bounds nil
   "Alist storing buffer positions for each section: (SECTION-INDEX . (START . END)).")
 
+(defvar lzdockel-dashboard-action-map
+  '(;; action-key  section-name  module         confirm   get-id-fn
+    ("d" . ((0 "Containers" lzdockel-container-delete t lzdockel-dashboard--container-id)
+            (1 "Images"     lzdockel-image-delete     t lzdockel-dashboard--image-id)
+            (2 "Volumes"    lzdockel-volume-delete     t lzdockel-dashboard--volume-name)
+            (3 "Networks"   lzdockel-network-delete    t lzdockel-dashboard--network-id)))
+    ("r" . ((0 "Containers" lzdockel-container-restart nil lzdockel-dashboard--container-id)))
+    ("P" . ((0 "Containers" lzdockel-container-pause   nil lzdockel-dashboard--container-id))))
+  "Dispatch table mapping action keys to section handlers.
+Each entry is (ACTION-KEY . ((SECTION-INDEX SECTION-NAME ACTION-FN CONFIRM-P ID-FN) ...)).")
+
 (defvar lzdockel-dashboard-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "TAB") #'lzdockel-dashboard-next-section)
@@ -36,6 +48,9 @@
     (define-key map (kbd "p") #'lzdockel-dashboard-prev-item)
     (define-key map (kbd "<down>") #'lzdockel-dashboard-next-item)
     (define-key map (kbd "<up>") #'lzdockel-dashboard-prev-item)
+    (define-key map (kbd "d") (lambda () (interactive) (lzdockel-dashboard-do-action "d")))
+    (define-key map (kbd "r") (lambda () (interactive) (lzdockel-dashboard-do-action "r")))
+    (define-key map (kbd "P") (lambda () (interactive) (lzdockel-dashboard-do-action "P")))
     map)
   "Keymap for `lzdockel-dashboard-mode'.")
 
@@ -97,6 +112,26 @@
   (or (cdr (assoc key alist))
       (cdr (assoc (symbol-name key) alist))
       ""))
+
+(defun lzdockel-dashboard--container-id (item)
+  "Extract container ID from ITEM."
+  (lzdockel-dashboard--get item 'ID))
+
+(defun lzdockel-dashboard--image-id (item)
+  "Extract image ID from ITEM."
+  (lzdockel-dashboard--get item 'ID))
+
+(defun lzdockel-dashboard--volume-name (item)
+  "Extract volume name from ITEM."
+  (lzdockel-dashboard--get item 'Name))
+
+(defun lzdockel-dashboard--network-id (item)
+  "Extract network ID from ITEM."
+  (lzdockel-dashboard--get item 'ID))
+
+(defun lzdockel-dashboard--container-paused-p (item)
+  "Return non-nil if CONTAINER is paused."
+  (string-match-p "Paused" (lzdockel-dashboard--get item 'Status)))
 
 (defun lzdockel-dashboard--container-active-p (container)
   "Return non-nil if CONTAINER is active (running)."
@@ -207,10 +242,44 @@
     (setq lzdockel-dashboard-section-bounds (nreverse lzdockel-dashboard-section-bounds))
     (goto-char (point-min))))
 
+(defun lzdockel-dashboard--selected-item-id ()
+  "Return (SECTION-INDEX . ID) for the currently selected item, or nil."
+  (let* ((section-idx lzdockel-dashboard-current-section)
+         (item (lzdockel-dashboard-get-selected-item)))
+    (when item
+      (let ((id-fn (nth 4 (cl-find-if
+                            (lambda (e) (eq (car e) section-idx))
+                            (cdr (assoc "d" lzdockel-dashboard-action-map))))))
+        (when id-fn
+          (cons section-idx (funcall id-fn item)))))))
+
+(defun lzdockel-dashboard--goto-item-by-id (section-idx id)
+  "Move cursor to the item with ID in SECTION-INDEX.
+Returns non-nil if item was found."
+  (let ((data (cdr (assoc section-idx lzdockel-dashboard-data)))
+        (bounds (cdr (assoc section-idx lzdockel-dashboard-section-bounds)))
+        (found nil))
+    (when (and data bounds)
+      (let ((id-fn (nth 4 (cl-find-if
+                            (lambda (e) (eq (car e) section-idx))
+                            (cdr (assoc "d" lzdockel-dashboard-action-map))))))
+        (when id-fn
+          (let ((data-start (lzdockel-dashboard--data-start section-idx)))
+            (when data-start
+              (goto-char data-start)
+              (dolist (item data)
+                (when (string= (funcall id-fn item) id)
+                  (setq found t))
+                (unless found
+                  (forward-line 1))))))))
+    found))
+
 (defun lzdockel-dashboard-fetch-all ()
   "Fetch data for all sections and render the dashboard."
   (let ((pending (length lzdockel-dashboard-sections))
-        (results '()))
+        (results '())
+        (saved-section lzdockel-dashboard-current-section)
+        (saved-item-id (lzdockel-dashboard--selected-item-id)))
     (dotimes (i (length lzdockel-dashboard-sections))
       (let ((section-idx i)
             (module (cdr (nth i lzdockel-dashboard-sections))))
@@ -224,13 +293,68 @@
                      (when (zerop pending)
                        (when (buffer-live-p (get-buffer "*lzdockel-dashboard*"))
                          (with-current-buffer "*lzdockel-dashboard*"
+                           (setq lzdockel-dashboard-current-section saved-section)
                            (setq lzdockel-dashboard-data (nreverse results))
-                           (lzdockel-dashboard-render)))))))))))
+                           (lzdockel-dashboard-render)
+                           (lzdockel-dashboard-goto-section saved-section)
+                            (if (and saved-item-id
+                                     (eq (car saved-item-id) saved-section)
+                                     (lzdockel-dashboard--goto-item-by-id
+                                      (car saved-item-id) (cdr saved-item-id)))
+                                nil
+                              (let ((data-start (lzdockel-dashboard--data-start saved-section)))
+                                (when data-start
+                                  (goto-char data-start))))))))))))))
+
+
 
 (defun lzdockel-dashboard-refresh ()
   "Refresh all dashboard data."
   (interactive)
   (lzdockel-dashboard-fetch-all))
+
+(defun lzdockel-dashboard-do-action (action-key)
+  "Dispatch ACTION-KEY to the appropriate handler based on current section.
+Looks up the action in `lzdockel-dashboard-action-map' and executes it."
+  (let* ((section-idx lzdockel-dashboard-current-section)
+         (section-name (car (nth section-idx lzdockel-dashboard-sections)))
+         (entries (cdr (assoc action-key lzdockel-dashboard-action-map)))
+         (entry (cl-find-if (lambda (e) (and (eq (car e) section-idx)
+                                             (string= (nth 1 e) section-name)))
+                            entries)))
+    (cond
+     ((null entry)
+      (message "No action for '%s' in %s section" action-key section-name))
+     (t
+      (let ((item (lzdockel-dashboard-get-selected-item)))
+        (if (null item)
+            (message "No item selected")
+          (let* ((paused-p (and (string= action-key "P")
+                                (lzdockel-dashboard--container-paused-p item)))
+                 (action-fn (if paused-p
+                                #'lzdockel-container-unpause
+                              (nth 2 entry)))
+                 (confirm-p (nth 3 entry))
+                 (id-fn (nth 4 entry))
+                 (id (funcall id-fn item))
+                 (action-label (cond
+                                ((string= action-key "d") "delete")
+                                ((string= action-key "r") "restart")
+                                ((string= action-key "P")
+                                 (if paused-p "unpause" "pause"))
+                                (t action-key))))
+            (when (or (not confirm-p)
+                      (yes-or-no-p (format "%s %s %s? " (capitalize action-label) section-name id)))
+              (funcall action-fn
+                       id
+                       (lambda (result)
+                         (if (car result)
+                             (progn
+                               (message "lzdockel: %s %s %s: success"
+                                        (capitalize action-label) section-name id)
+                               (lzdockel-dashboard-refresh))
+                           (message "lzdockel: Failed to %s %s %s: %s"
+                                    action-label section-name id (cdr result)))))))))))))
 
 (defun lzdockel-dashboard-next-section ()
   "Move to the next section."
@@ -256,13 +380,28 @@
     (when bounds
       (goto-char (car bounds)))))
 
+(defconst lzdockel-dashboard--header-lines 2
+  "Number of header lines before data in each section (section header + column header).")
+
+(defun lzdockel-dashboard--data-start (section-index)
+  "Return buffer position of first data line in SECTION-INDEX."
+  (let ((bounds (cdr (assoc section-index lzdockel-dashboard-section-bounds))))
+    (when bounds
+      (save-excursion
+        (goto-char (car bounds))
+        (forward-line lzdockel-dashboard--header-lines)
+        (point)))))
+
 (defun lzdockel-dashboard-next-item ()
   "Move to the next item within the current section."
   (interactive)
   (let ((bounds (cdr (assoc lzdockel-dashboard-current-section lzdockel-dashboard-section-bounds))))
     (when bounds
-      (let ((section-end (cdr bounds)))
+      (let ((data-start (lzdockel-dashboard--data-start lzdockel-dashboard-current-section))
+            (section-end (cdr bounds)))
         (forward-line 1)
+        (when (and data-start (< (point) data-start))
+          (goto-char data-start))
         (when (>= (point) section-end)
           (lzdockel-dashboard-next-section))))))
 
@@ -271,10 +410,14 @@
   (interactive)
   (let ((bounds (cdr (assoc lzdockel-dashboard-current-section lzdockel-dashboard-section-bounds))))
     (when bounds
-      (let ((section-start (car bounds)))
+      (let* ((section-start (car bounds))
+             (data-start (lzdockel-dashboard--data-start lzdockel-dashboard-current-section)))
         (forward-line -1)
-        (when (< (point) section-start)
-          (lzdockel-dashboard-prev-section))))))
+        (cond
+         ((< (point) section-start)
+          (lzdockel-dashboard-prev-section))
+         ((and data-start (< (point) data-start))
+          (goto-char data-start)))))))
 
 (defun lzdockel-dashboard-get-selected-item ()
   "Return the currently selected item data from the active section."
@@ -282,8 +425,8 @@
          (data (cdr (assoc section-idx lzdockel-dashboard-data)))
          (bounds (cdr (assoc section-idx lzdockel-dashboard-section-bounds))))
     (when (and data bounds)
-      (let* ((section-start (car bounds))
-             (line-offset (- (line-number-at-pos) (line-number-at-pos section-start) 1)))
+       (let* ((section-start (car bounds))
+             (line-offset (- (line-number-at-pos) (line-number-at-pos section-start) 2)))
         (when (and (>= line-offset 0) (< line-offset (length data)))
           (nth line-offset data))))))
 

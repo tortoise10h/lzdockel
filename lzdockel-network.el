@@ -12,5 +12,10 @@ CALLBACK receives a list of network alists."
      (funcall callback (lzdockel-core-parse-json-lines output)))
    "network" "ls" "--format" "{{json .}}"))
 
+(defun lzdockel-network-delete (id callback)
+  "Delete network with ID asynchronously.
+CALLBACK is called with (SUCCESS-P . MESSAGE)."
+  (lzdockel-core-run-action callback "network" "rm" id))
+
 (provide 'lzdockel-network)
 ;;; lzdockel-network.el ends here
