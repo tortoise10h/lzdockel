@@ -26,6 +26,8 @@
   :group 'tools
   :prefix "lzdockel-")
 
+(require 'lzdockel-faces)
+(require 'lzdockel-core)
 (require 'lzdockel-container)
 (require 'lzdockel-image)
 
