@@ -20,5 +20,21 @@
   '((t :inherit font-lock-variable-use-face))
   "Face for Docker image IDs.")
 
+(defface lzdockel-dashboard-title
+  '((((background dark))
+     :foreground "#4a9eff" :weight extra-bold :height 5.0 :inherit fixed-pitch)
+    (t
+     :foreground "#2563eb" :weight extra-bold :height 5.0 :inherit fixed-pitch))
+  "Face for the lzdockel dashboard title."
+  :group 'lzdockel-faces)
+
+(defface lzdockel-dashboard-item-dim
+  '((((background dark))
+     :foreground "#666666")
+    (t
+     :foreground "#999999"))
+  "Face for dimmed/exited dashboard items."
+  :group 'lzdockel-faces)
+
 (provide 'lzdockel-faces)
 ;;; lzdockel-faces.el ends here

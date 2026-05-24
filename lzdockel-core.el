@@ -31,12 +31,5 @@ CALLBACK is called with one argument: the stdout output as a string."
                      (funcall callback output)))
                  (kill-buffer (process-buffer proc))))))
 
-(defun lzdockel-core-run-sync (&rest args)
-  "Run docker with ARGS synchronously, return stdout as a string."
-  (let ((result (apply #'call-process "docker" nil t nil args)))
-    (if (zerop result)
-        (buffer-string)
-      (error "docker %s failed with exit code %s" (mapconcat #'identity args " ") result))))
-
 (provide 'lzdockel-core)
 ;;; lzdockel-core.el ends here
