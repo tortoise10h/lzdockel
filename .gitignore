@@ -1,2 +1,14 @@
 /.agent-shell/
 *.elc
+
+# macOS
+.DS_Store
+
+# Emacs
+\#*\#
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-workspace
