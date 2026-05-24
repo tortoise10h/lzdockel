@@ -36,17 +36,19 @@
 (defun lzdockel-container-refresh ()
   "Refresh the container list from Docker."
   (interactive)
-  (let ((buf (current-buffer)))
+  (let* ((buf (current-buffer))
+         (buf-name (buffer-name buf)))
     (lzdockel-core-run
      (lambda (output)
        (when (buffer-live-p buf)
          (with-current-buffer buf
-           (let ((containers (lzdockel-core-parse-json-lines output))
-                 (entries '()))
-             (dolist (container containers)
-               (push (lzdockel-container--build-entry container) entries))
-             (setq tabulated-list-entries (nreverse entries))
-             (tabulated-list-print)))))
+           (when (string= (buffer-name) buf-name)
+             (let ((containers (lzdockel-core-parse-json-lines output))
+                   (entries '()))
+               (dolist (container containers)
+                 (push (lzdockel-container--build-entry container) entries))
+               (setq tabulated-list-entries (nreverse entries))
+               (tabulated-list-print))))))
      "container" "ls" "-a" "--format" "{{json .}}")))
 
 (define-derived-mode lzdockel-container-mode tabulated-list-mode "Lzdockel-Container"
