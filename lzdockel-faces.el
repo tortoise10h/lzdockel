@@ -28,6 +28,10 @@
   "Face for the lzdockel dashboard title."
   :group 'lzdockel-faces)
 
+(defface lzdockel-port
+  '((t :inherit font-lock-type-face))
+  "Face for container port mappings.")
+
 (defface lzdockel-dashboard-item-dim
   '((((background dark))
      :foreground "#666666")

@@ -3,6 +3,7 @@
 ;;; Code:
 
 (require 'lzdockel-core)
+(require 'lzdockel-format)
 (require 'lzdockel-container)
 (require 'lzdockel-image)
 (require 'lzdockel-volume)
@@ -82,14 +83,14 @@ like evil, meow, etc. via `emulation-mode-map-alists'.")
   "Face for column headers in sections.")
 
 (defvar lzdockel-dashboard-column-headers
-  '(("Containers" . "  %-12s %-30s %-20s %s")
+  '(    ("Containers" . "  %-12s %-30s %-20s %-20s %s")
     ("Images" . "  %-12s %-30s %-15s %s")
     ("Volumes" . "  %-15s %s")
     ("Networks" . "  %-12s %-25s %-15s %s"))
   "Format strings for column headers per section.")
 
 (defvar lzdockel-dashboard-column-labels
-  '(("Containers" . ["ID" "Image" "Created" "Name"])
+  '(("Containers" . ["ID" "Image" "Created" "Ports" "Name"])
     ("Images" . ["ID" "Repository" "Tag" "Size"])
     ("Volumes" . ["Driver" "Name"])
     ("Networks" . ["ID" "Name" "Driver" "Scope"]))
@@ -139,16 +140,18 @@ like evil, meow, etc. via `emulation-mode-map-alists'.")
          (image (lzdockel-core-get container 'Image))
          (created (lzdockel-core-get container 'RunningFor))
          (status (lzdockel-core-get container 'Status))
+         (ports (lzdockel-format-ports (lzdockel-core-get container 'Ports)))
          (names (lzdockel-core-get container 'Names))
          (exited (string-prefix-p "Exited" status))
          (status-face (cond
                         ((string-prefix-p "Up" status) 'lzdockel-status-running)
                         ((string-prefix-p "Exited" status) 'lzdockel-status-exited)
                         (t nil)))
-         (line (format "  %-12s %-30s %-20s %s"
+         (line (format "  %-12s %-30s %-20s %-20s %s"
                        (propertize short-id 'face 'lzdockel-image-id)
                        image
                        created
+                       (if (string-empty-p ports) "" (propertize ports 'face 'lzdockel-port))
                        names)))
     (when exited
       (setq line (propertize line 'face 'lzdockel-dashboard-item-dim)))
