@@ -25,6 +25,25 @@
 (defvar lzdockel-dashboard-section-bounds nil
   "Alist storing buffer positions for each section: (SECTION-INDEX . (START . END)).")
 
+(defvar lzdockel-dashboard-item-keymap-entries
+  '((?d . (("Containers" . lzdockel-container-delete)
+           ("Images"     . lzdockel-image-delete)
+           ("Volumes"    . lzdockel-volume-delete)
+           ("Networks"   . lzdockel-network-delete)))
+    (?r . (("Containers" . lzdockel-container-restart)))
+    (?s . (("Containers" . lzdockel-container-stop))))
+  "Dispatch table mapping keys to section-specific action functions.")
+
+(defun lzdockel-dashboard-dispatch-action (key)
+  "Execute the action bound to KEY for the item and section at point."
+  (let* ((item (lzdockel-dashboard--item-at-point))
+         (section-name (lzdockel-dashboard--section-name-at-point))
+         (entries (cdr (assoc key lzdockel-dashboard-item-keymap-entries)))
+         (action-fn (and section-name
+                         (cdr (assoc section-name entries)))))
+    (when (and item action-fn)
+      (funcall action-fn item #'lzdockel-dashboard-refresh))))
+
 (defvar lzdockel-dashboard-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "TAB") #'lzdockel-dashboard-next-section)
@@ -32,12 +51,19 @@
     (define-key map (kbd "S-<tab>") #'lzdockel-dashboard-prev-section)
     (define-key map (kbd "g") #'lzdockel-dashboard-refresh)
     (define-key map (kbd "q") #'quit-window)
-    (define-key map (kbd "n") #'lzdockel-dashboard-next-item)
-    (define-key map (kbd "p") #'lzdockel-dashboard-prev-item)
-    (define-key map (kbd "<down>") #'lzdockel-dashboard-next-item)
-    (define-key map (kbd "<up>") #'lzdockel-dashboard-prev-item)
+    (define-key map (kbd "d") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?d)))
+    (define-key map (kbd "r") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?r)))
+    (define-key map (kbd "s") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?s)))
     map)
   "Keymap for `lzdockel-dashboard-mode'.")
+
+(defvar-local lzdockel-dashboard--override-active nil
+  "Non-nil in dashboard buffers to activate the override keymap.
+This ensures lzdockel keybindings take priority over modal editors
+like evil, meow, etc. via `emulation-mode-map-alists'.")
+
+(add-to-list 'emulation-mode-map-alists
+             '((lzdockel-dashboard-mode-map . lzdockel-dashboard--override-active)))
 
 (defface lzdockel-dashboard-section-header
   '((t :inherit font-lock-function-name-face :weight bold))
@@ -75,7 +101,8 @@
   (hl-line-mode 1)
   (setq-local lzdockel-dashboard-current-section 0)
   (setq-local lzdockel-dashboard-data nil)
-  (setq-local lzdockel-dashboard-section-bounds nil))
+  (setq-local lzdockel-dashboard-section-bounds nil)
+  (setq-local lzdockel-dashboard--override-active t))
 
 (defun lzdockel-dashboard--section-header (title index)
   "Return a formatted section header string for TITLE at INDEX."
@@ -92,15 +119,11 @@
         (concat (propertize (apply #'format fmt (append labels nil)) 'face 'lzdockel-dashboard-column-header) "\n")
       "")))
 
-(defun lzdockel-dashboard--get (alist key)
-  "Get VALUE from ALIST by KEY, handling both string and symbol keys."
-  (or (cdr (assoc key alist))
-      (cdr (assoc (symbol-name key) alist))
-      ""))
+
 
 (defun lzdockel-dashboard--container-active-p (container)
   "Return non-nil if CONTAINER is active (running)."
-  (string-prefix-p "Up" (lzdockel-dashboard--get container 'Status)))
+  (string-prefix-p "Up" (lzdockel-core-get container 'Status)))
 
 (defun lzdockel-dashboard--sort-containers (containers)
   "Sort CONTAINERS so active ones appear first."
@@ -111,12 +134,12 @@
 
 (defun lzdockel-dashboard--format-container (container)
   "Format a CONTAINER alist for display."
-  (let* ((id (lzdockel-dashboard--get container 'ID))
+  (let* ((id (lzdockel-core-get container 'ID))
          (short-id (substring id 0 (min 12 (length id))))
-	 (image (lzdockel-dashboard--get container 'Image))
-         (created (lzdockel-dashboard--get container 'RunningFor))
-         (status (lzdockel-dashboard--get container 'Status))
-         (names (lzdockel-dashboard--get container 'Names))
+         (image (lzdockel-core-get container 'Image))
+         (created (lzdockel-core-get container 'RunningFor))
+         (status (lzdockel-core-get container 'Status))
+         (names (lzdockel-core-get container 'Names))
          (exited (string-prefix-p "Exited" status))
          (status-face (cond
                         ((string-prefix-p "Up" status) 'lzdockel-status-running)
@@ -135,11 +158,11 @@
 
 (defun lzdockel-dashboard--format-image (image)
   "Format an IMAGE alist for display."
-  (let* ((id (lzdockel-dashboard--get image 'ID))
+  (let* ((id (lzdockel-core-get image 'ID))
          (short-id (substring id 0 (min 12 (length id))))
-         (repository (lzdockel-dashboard--get image 'Repository))
-         (tag (lzdockel-dashboard--get image 'Tag))
-         (size (lzdockel-dashboard--get image 'Size)))
+         (repository (lzdockel-core-get image 'Repository))
+         (tag (lzdockel-core-get image 'Tag))
+         (size (lzdockel-core-get image 'Size)))
     (format "  %-12s %-30s %-15s %s"
             (propertize short-id 'face 'lzdockel-image-id)
             repository
@@ -148,17 +171,17 @@
 
 (defun lzdockel-dashboard--format-volume (volume)
   "Format a VOLUME alist for display."
-  (let ((driver (lzdockel-dashboard--get volume 'Driver))
-        (name (lzdockel-dashboard--get volume 'Name)))
+  (let ((driver (lzdockel-core-get volume 'Driver))
+        (name (lzdockel-core-get volume 'Name)))
     (format "  %-15s %s" driver name)))
 
 (defun lzdockel-dashboard--format-network (network)
   "Format a NETWORK alist for display."
-  (let* ((id (lzdockel-dashboard--get network 'ID))
+  (let* ((id (lzdockel-core-get network 'ID))
          (short-id (substring id 0 (min 12 (length id))))
-         (name (lzdockel-dashboard--get network 'Name))
-         (driver (lzdockel-dashboard--get network 'Driver))
-         (scope (lzdockel-dashboard--get network 'Scope)))
+         (name (lzdockel-core-get network 'Name))
+         (driver (lzdockel-core-get network 'Driver))
+         (scope (lzdockel-core-get network 'Scope)))
     (format "  %-12s %-25s %-15s %s"
             (propertize short-id 'face 'lzdockel-image-id)
             name
@@ -183,7 +206,11 @@
     (if (null data)
         (insert "  (empty)\n")
       (dolist (item data)
-        (insert (lzdockel-dashboard--format-item item index) "\n")))
+        (let ((p (point)))
+          (insert (lzdockel-dashboard--format-item item index) "\n")
+          (add-text-properties p (1- (point))
+                               (list 'lzdockel-item item
+                                     'lzdockel-section title)))))
     (insert "\n")
     (cons index (cons start (point)))))
 
@@ -251,41 +278,42 @@
   (lzdockel-dashboard-goto-section lzdockel-dashboard-current-section))
 
 (defun lzdockel-dashboard-goto-section (index)
-  "Move point to the start of section at INDEX."
+  "Move point to the first item of section at INDEX."
   (let ((bounds (cdr (assoc index lzdockel-dashboard-section-bounds))))
     (when bounds
-      (goto-char (car bounds)))))
+      (let ((first-item-pos (lzdockel-dashboard--first-item-pos bounds)))
+        (if first-item-pos
+            (goto-char first-item-pos)
+          (goto-char (car bounds)))))))
 
-(defun lzdockel-dashboard-next-item ()
-  "Move to the next item within the current section."
-  (interactive)
-  (let ((bounds (cdr (assoc lzdockel-dashboard-current-section lzdockel-dashboard-section-bounds))))
-    (when bounds
-      (let ((section-end (cdr bounds)))
-        (forward-line 1)
-        (when (>= (point) section-end)
-          (lzdockel-dashboard-next-section))))))
+(defun lzdockel-dashboard--first-item-pos (bounds)
+  "Return buffer position of the first item line within BOUNDS (section-start . section-end).
+Returns nil if section has no items (e.g. empty)."
+  (save-excursion
+    (goto-char (car bounds))
+    (forward-line 2)
+    (when (< (point) (cdr bounds))
+      (point))))
 
-(defun lzdockel-dashboard-prev-item ()
-  "Move to the previous item within the current section."
-  (interactive)
-  (let ((bounds (cdr (assoc lzdockel-dashboard-current-section lzdockel-dashboard-section-bounds))))
-    (when bounds
-      (let ((section-start (car bounds)))
-        (forward-line -1)
-        (when (< (point) section-start)
-          (lzdockel-dashboard-prev-section))))))
+
+(defun lzdockel-dashboard--text-property-at-point (prop)
+  "Return text property PROP at point, falling back to line start.
+Covers point-at-EOL and other positions where the property is at
+line-beginning-position."
+  (or (get-text-property (point) prop)
+      (get-text-property (line-beginning-position) prop)))
+
+(defun lzdockel-dashboard--item-at-point ()
+  "Return the item alist for the item line at point, or nil."
+  (lzdockel-dashboard--text-property-at-point 'lzdockel-item))
+
+(defun lzdockel-dashboard--section-name-at-point ()
+  "Return the section title string for the line at point, or nil."
+  (lzdockel-dashboard--text-property-at-point 'lzdockel-section))
 
 (defun lzdockel-dashboard-get-selected-item ()
-  "Return the currently selected item data from the active section."
-  (let* ((section-idx lzdockel-dashboard-current-section)
-         (data (cdr (assoc section-idx lzdockel-dashboard-data)))
-         (bounds (cdr (assoc section-idx lzdockel-dashboard-section-bounds))))
-    (when (and data bounds)
-      (let* ((section-start (car bounds))
-             (line-offset (- (line-number-at-pos) (line-number-at-pos section-start) 1)))
-        (when (and (>= line-offset 0) (< line-offset (length data)))
-          (nth line-offset data))))))
+  "Return the item alist at point, or nil if not on an item line."
+  (lzdockel-dashboard--item-at-point))
 
 ;;;###autoload
 (defun lzdockel-dashboard ()

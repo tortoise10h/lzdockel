@@ -12,5 +12,32 @@ CALLBACK receives a list of container alists."
      (funcall callback (lzdockel-core-parse-json-lines output)))
    "container" "ls" "-a" "--format" "{{json .}}"))
 
+(defun lzdockel-container-delete (item callback)
+  "Delete the container referenced by ITEM, with confirmation.
+CALLBACK is called on success."
+  (message "[DEBUG] lzdockel-container-delete called: %s" (lzdockel-core-get item 'Names))
+  (lzdockel-core-action-run
+   (format "Delete container %s? " (lzdockel-core-get item 'Names))
+   `("container" "rm" ,(lzdockel-core-get item 'ID))
+   callback))
+
+(defun lzdockel-container-restart (item callback)
+  "Restart the container referenced by ITEM, with confirmation.
+CALLBACK is called on success."
+  (message "[DEBUG] lzdockel-container-restart called: %s" (lzdockel-core-get item 'Names))
+  (lzdockel-core-action-run
+   (format "Restart container %s? " (lzdockel-core-get item 'Names))
+   `("container" "restart" ,(lzdockel-core-get item 'ID))
+   callback))
+
+(defun lzdockel-container-stop (item callback)
+  "Stop the container referenced by ITEM, with confirmation.
+CALLBACK is called on success."
+  (message "[DEBUG] lzdockel-container-stop called: %s" (lzdockel-core-get item 'Names))
+  (lzdockel-core-action-run
+   (format "Stop container %s? " (lzdockel-core-get item 'Names))
+   `("container" "stop" ,(lzdockel-core-get item 'ID))
+   callback))
+
 (provide 'lzdockel-container)
 ;;; lzdockel-container.el ends here
