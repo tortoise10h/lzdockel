@@ -12,10 +12,14 @@ CALLBACK receives a list of volume alists."
      (funcall callback (lzdockel-core-parse-json-lines output)))
    "volume" "ls" "--format" "{{json .}}"))
 
-(defun lzdockel-volume-delete (name callback)
-  "Delete volume with NAME asynchronously.
-CALLBACK is called with (SUCCESS-P . MESSAGE)."
-  (lzdockel-core-run-action callback "volume" "rm" name))
+(defun lzdockel-volume-delete (item callback)
+  "Delete the volume referenced by ITEM, with confirmation.
+CALLBACK is called on success."
+  (message "[DEBUG] lzdockel-volume-delete called: %s" (lzdockel-core-get item 'Name))
+  (lzdockel-core-action-run
+   (format "Delete volume %s? " (lzdockel-core-get item 'Name))
+   `("volume" "rm" ,(lzdockel-core-get item 'Name))
+   callback))
 
 (provide 'lzdockel-volume)
 ;;; lzdockel-volume.el ends here

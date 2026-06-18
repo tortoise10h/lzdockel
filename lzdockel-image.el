@@ -12,10 +12,18 @@ CALLBACK receives a list of image alists."
      (funcall callback (lzdockel-core-parse-json-lines output)))
    "image" "ls" "--format" "{{json .}}"))
 
-(defun lzdockel-image-delete (id callback)
-  "Delete image with ID asynchronously.
-CALLBACK is called with (SUCCESS-P . MESSAGE)."
-  (lzdockel-core-run-action callback "rmi" id))
+(defun lzdockel-image-delete (item callback)
+  "Delete the image referenced by ITEM, with confirmation.
+CALLBACK is called on success."
+  (message "[DEBUG] lzdockel-image-delete called: %s:%s"
+           (lzdockel-core-get item 'Repository)
+           (lzdockel-core-get item 'Tag))
+  (lzdockel-core-action-run
+   (format "Delete image %s:%s? "
+           (lzdockel-core-get item 'Repository)
+           (lzdockel-core-get item 'Tag))
+   `("image" "rm" ,(lzdockel-core-get item 'ID))
+   callback))
 
 (provide 'lzdockel-image)
 ;;; lzdockel-image.el ends here

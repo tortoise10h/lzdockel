@@ -22,9 +22,9 @@
 
 (defface lzdockel-dashboard-title
   '((((background dark))
-     :foreground "#4a9eff" :weight extra-bold :height 5.0 :inherit fixed-pitch)
+     :foreground "#4a9eff" :weight extra-bold :height 2.5 :inherit fixed-pitch)
     (t
-     :foreground "#2563eb" :weight extra-bold :height 5.0 :inherit fixed-pitch))
+     :foreground "#2563eb" :weight extra-bold :height 2.5 :inherit fixed-pitch))
   "Face for the lzdockel dashboard title."
   :group 'lzdockel-faces)
 
