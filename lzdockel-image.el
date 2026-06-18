@@ -15,9 +15,6 @@ CALLBACK receives a list of image alists."
 (defun lzdockel-image-delete (item callback)
   "Delete the image referenced by ITEM, with confirmation.
 CALLBACK is called on success."
-  (message "[DEBUG] lzdockel-image-delete called: %s:%s"
-           (lzdockel-core-get item 'Repository)
-           (lzdockel-core-get item 'Tag))
   (lzdockel-core-action-run
    (format "Delete image %s:%s? "
            (lzdockel-core-get item 'Repository)

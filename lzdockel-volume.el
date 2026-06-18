@@ -15,7 +15,6 @@ CALLBACK receives a list of volume alists."
 (defun lzdockel-volume-delete (item callback)
   "Delete the volume referenced by ITEM, with confirmation.
 CALLBACK is called on success."
-  (message "[DEBUG] lzdockel-volume-delete called: %s" (lzdockel-core-get item 'Name))
   (lzdockel-core-action-run
    (format "Delete volume %s? " (lzdockel-core-get item 'Name))
    `("volume" "rm" ,(lzdockel-core-get item 'Name))

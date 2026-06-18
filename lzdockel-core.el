@@ -25,8 +25,6 @@ Each line in OUTPUT is expected to be a valid JSON object."
   "Run a docker action with confirmation.
 CONFIRM-PROMPT is shown as a yes/no question. ARGS are passed to
 docker. CALLBACK is called on success."
-  (message "[DEBUG] lzdockel-core-action-run: prompt=%S args=%S callback=%s"
-           confirm-prompt args (if callback "yes" "no"))
   (when (yes-or-no-p confirm-prompt)
     (apply #'lzdockel-core-run
            (lambda (_output)

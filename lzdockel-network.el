@@ -15,7 +15,6 @@ CALLBACK receives a list of network alists."
 (defun lzdockel-network-delete (item callback)
   "Delete the network referenced by ITEM, with confirmation.
 CALLBACK is called on success."
-  (message "[DEBUG] lzdockel-network-delete called: %s" (lzdockel-core-get item 'Name))
   (lzdockel-core-action-run
    (format "Delete network %s? " (lzdockel-core-get item 'Name))
    `("network" "rm" ,(lzdockel-core-get item 'ID))
