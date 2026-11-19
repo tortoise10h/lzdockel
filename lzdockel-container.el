@@ -54,6 +54,7 @@ CALLBACK is called on success."
   "Attach to the container referenced by ITEM in a separate eshell buffer.
 Runs `docker exec -it CONTAINER /bin/sh' in an eshell buffer named
 after the container, reusing the buffer if it is already open.
+Prompts for confirmation before opening a new attach buffer.
 CALLBACK is accepted for `lzdockel-dashboard-dispatch-action'
 compatibility and ignored."
   (let* ((id (lzdockel-core-get item 'ID))
@@ -61,12 +62,13 @@ compatibility and ignored."
          (target (if (string-empty-p id) name id))
          (bufname (lzdockel-container-attach-buffer-name item))
          (buf (get-buffer bufname)))
-    (if buf
-        (pop-to-buffer buf)
+    (cond
+     (buf (pop-to-buffer buf))
+     ((yes-or-no-p (format "Attach to container %s? " name))
       (let ((eshell-buffer-name bufname))
         (eshell)
         (insert (format "docker exec -it %s /bin/sh" target))
-        (eshell-send-input)))))
+        (eshell-send-input))))))
 
 (provide 'lzdockel-container)
 ;;; lzdockel-container.el ends here
