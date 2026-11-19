@@ -2,6 +2,8 @@
 
 ;;; Code:
 
+(require 'eshell)
+(require 'esh-mode)
 (require 'lzdockel-core)
 (require 'lzdockel-logs)
 
@@ -40,6 +42,31 @@ CALLBACK is called on success."
 (defun lzdockel-container-logs (item)
   "Open a logs buffer for the container referenced by ITEM."
   (lzdockel-logs-show item))
+
+(defun lzdockel-container-attach-buffer-name (item)
+  "Return the attach eshell buffer name for container ITEM."
+  (let ((name (lzdockel-core-get item 'Names))
+        (id (lzdockel-core-get item 'ID)))
+    (format "*lzdockel-attach: %s*"
+            (if (string-empty-p name) id name))))
+
+(defun lzdockel-container-attach (item &optional _callback)
+  "Attach to the container referenced by ITEM in a separate eshell buffer.
+Runs `docker exec -it CONTAINER /bin/sh' in an eshell buffer named
+after the container, reusing the buffer if it is already open.
+CALLBACK is accepted for `lzdockel-dashboard-dispatch-action'
+compatibility and ignored."
+  (let* ((id (lzdockel-core-get item 'ID))
+         (name (lzdockel-core-get item 'Names))
+         (target (if (string-empty-p id) name id))
+         (bufname (lzdockel-container-attach-buffer-name item))
+         (buf (get-buffer bufname)))
+    (if buf
+        (pop-to-buffer buf)
+      (let ((eshell-buffer-name bufname))
+        (eshell)
+        (insert (format "docker exec -it %s /bin/sh" target))
+        (eshell-send-input)))))
 
 (provide 'lzdockel-container)
 ;;; lzdockel-container.el ends here

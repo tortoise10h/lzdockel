@@ -27,7 +27,8 @@
   "Alist storing buffer positions for each section: (SECTION-INDEX . (START . END)).")
 
 (defvar lzdockel-dashboard-item-keymap-entries
-  '((?d . (("Containers" . lzdockel-container-delete)
+  '((?a . (("Containers" . lzdockel-container-attach)))
+    (?d . (("Containers" . lzdockel-container-delete)
            ("Images"     . lzdockel-image-delete)
            ("Volumes"    . lzdockel-volume-delete)
            ("Networks"   . lzdockel-network-delete)))
@@ -54,6 +55,7 @@
     (define-key map (kbd "q") #'quit-window)
     (define-key map (kbd "RET") #'lzdockel-dashboard-open-item)
     (define-key map (kbd "<return>") #'lzdockel-dashboard-open-item)
+    (define-key map (kbd "a") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?a)))
     (define-key map (kbd "d") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?d)))
     (define-key map (kbd "r") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?r)))
     (define-key map (kbd "s") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?s)))
