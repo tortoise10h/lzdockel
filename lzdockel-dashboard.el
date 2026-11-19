@@ -73,12 +73,20 @@ like evil, meow, etc. via `emulation-mode-map-alists'.")
   "Face for section headers in the dashboard.")
 
 (defface lzdockel-dashboard-section-active
-  '((t :background "#3d5226" :weight bold))
-  "Face for the active section header.")
+  '((((background dark))
+     :background "#3d5226" :weight bold)
+    (t
+     :background "#d4edbc" :foreground "#1a3309" :weight bold))
+  "Face for the active section header."
+  :group 'lzdockel-faces)
 
 (defface lzdockel-dashboard-item-selected
-  '((t :background "#444444"))
-  "Face for the selected item in a section.")
+  '((((background dark))
+     :background "#444444")
+    (t
+     :background "#e2e8f0"))
+  "Face for the selected item in a section."
+  :group 'lzdockel-faces)
 
 (defface lzdockel-dashboard-column-header
   '((t :inherit font-lock-comment-face :weight bold))
