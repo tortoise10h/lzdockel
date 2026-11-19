@@ -3,6 +3,7 @@
 ;;; Code:
 
 (require 'lzdockel-core)
+(require 'lzdockel-logs)
 
 (defun lzdockel-container-list (callback)
   "Fetch Docker containers asynchronously, calling CALLBACK with results.
@@ -35,6 +36,10 @@ CALLBACK is called on success."
    (format "Stop container %s? " (lzdockel-core-get item 'Names))
    `("container" "stop" ,(lzdockel-core-get item 'ID))
    callback))
+
+(defun lzdockel-container-logs (item)
+  "Open a logs buffer for the container referenced by ITEM."
+  (lzdockel-logs-show item))
 
 (provide 'lzdockel-container)
 ;;; lzdockel-container.el ends here

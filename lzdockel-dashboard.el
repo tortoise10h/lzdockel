@@ -52,6 +52,8 @@
     (define-key map (kbd "S-<tab>") #'lzdockel-dashboard-prev-section)
     (define-key map (kbd "g") #'lzdockel-dashboard-refresh)
     (define-key map (kbd "q") #'quit-window)
+    (define-key map (kbd "RET") #'lzdockel-dashboard-open-item)
+    (define-key map (kbd "<return>") #'lzdockel-dashboard-open-item)
     (define-key map (kbd "d") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?d)))
     (define-key map (kbd "r") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?r)))
     (define-key map (kbd "s") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?s)))
@@ -317,6 +319,15 @@ line-beginning-position."
 (defun lzdockel-dashboard-get-selected-item ()
   "Return the item alist at point, or nil if not on an item line."
   (lzdockel-dashboard--item-at-point))
+
+(defun lzdockel-dashboard-open-item ()
+  "Open the item at point.
+For items in the Containers section, display container logs."
+  (interactive)
+  (let ((item (lzdockel-dashboard--item-at-point))
+        (section-name (lzdockel-dashboard--section-name-at-point)))
+    (when (and item (string= section-name "Containers"))
+      (lzdockel-container-logs item))))
 
 ;;;###autoload
 (defun lzdockel-dashboard ()
