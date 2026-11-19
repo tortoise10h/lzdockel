@@ -3,6 +3,7 @@
 ;;; Code:
 
 (require 'lzdockel-core)
+(require 'lzdockel-inspect)
 
 (defun lzdockel-volume-list (callback)
   "Fetch Docker volumes asynchronously, calling CALLBACK with results.
@@ -19,6 +20,12 @@ CALLBACK is called on success."
    (format "Delete volume %s? " (lzdockel-core-get item 'Name))
    `("volume" "rm" ,(lzdockel-core-get item 'Name))
    callback))
+
+(defun lzdockel-volume-inspect (item &optional _callback)
+  "Open an inspect buffer for the volume referenced by ITEM.
+CALLBACK is accepted for `lzdockel-dashboard-dispatch-action'
+compatibility and ignored."
+  (lzdockel-inspect-show "volume" item))
 
 (provide 'lzdockel-volume)
 ;;; lzdockel-volume.el ends here

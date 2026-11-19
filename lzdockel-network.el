@@ -3,6 +3,7 @@
 ;;; Code:
 
 (require 'lzdockel-core)
+(require 'lzdockel-inspect)
 
 (defun lzdockel-network-list (callback)
   "Fetch Docker networks asynchronously, calling CALLBACK with results.
@@ -19,6 +20,12 @@ CALLBACK is called on success."
    (format "Delete network %s? " (lzdockel-core-get item 'Name))
    `("network" "rm" ,(lzdockel-core-get item 'ID))
    callback))
+
+(defun lzdockel-network-inspect (item &optional _callback)
+  "Open an inspect buffer for the network referenced by ITEM.
+CALLBACK is accepted for `lzdockel-dashboard-dispatch-action'
+compatibility and ignored."
+  (lzdockel-inspect-show "network" item))
 
 (provide 'lzdockel-network)
 ;;; lzdockel-network.el ends here

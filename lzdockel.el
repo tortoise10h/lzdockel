@@ -27,6 +27,7 @@
 (require 'lzdockel-faces)
 (require 'lzdockel-core)
 (require 'lzdockel-logs)
+(require 'lzdockel-inspect)
 (require 'lzdockel-container)
 (require 'lzdockel-image)
 (require 'lzdockel-volume)

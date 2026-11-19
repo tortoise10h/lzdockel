@@ -6,6 +6,7 @@
 (require 'esh-mode)
 (require 'lzdockel-core)
 (require 'lzdockel-logs)
+(require 'lzdockel-inspect)
 
 (defun lzdockel-container-list (callback)
   "Fetch Docker containers asynchronously, calling CALLBACK with results.
@@ -42,6 +43,12 @@ CALLBACK is called on success."
 (defun lzdockel-container-logs (item)
   "Open a logs buffer for the container referenced by ITEM."
   (lzdockel-logs-show item))
+
+(defun lzdockel-container-inspect (item &optional _callback)
+  "Open an inspect buffer for the container referenced by ITEM.
+CALLBACK is accepted for `lzdockel-dashboard-dispatch-action'
+compatibility and ignored."
+  (lzdockel-inspect-show "container" item))
 
 (defun lzdockel-container-attach-buffer-name (item)
   "Return the attach eshell buffer name for container ITEM."
