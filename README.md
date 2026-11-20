@@ -2,13 +2,26 @@
 
 Native Emacs interface for Docker management, inspired by [lazydocker](https://github.com/jesseduffield/lazydocker).
 
+## Table of Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Keybindings](#keybindings)
+- [Development](#development)
+- [License](#license)
+
 ## Features
 
-- **Container Management**: List, restart, stop, remove containers, and view logs
-- **Image Management**: List and delete Docker images
+- **Unified Dashboard**: Single `*lzdockel-dashboard*` buffer displaying **Containers**, **Images**, **Volumes**, and **Networks** in navigable sections
+- **Container Management**: List containers (running sorted first), restart, stop, delete (with confirmation), view logs, inspect, and attach via `eshell` (`docker exec -it <id> /bin/sh`)
+- **Image, Volume & Network Management**: List, inspect, and delete (with confirmation) Docker images, volumes, and networks
+- **Container Logs Viewer**: Dedicated `lzdockel-logs-mode` buffer with ANSI color rendering and automatic live streaming (`-f`) for running containers
+- **Inspect Viewer**: Dedicated `lzdockel-inspect-mode` buffer displaying pretty-printed JSON from `docker <kind> inspect` for containers, images, volumes, and networks
 - **Async Operations**: Non-blocking Docker CLI execution
-- **Status Coloring**: Running containers in green, exited in red
-- **Tabulated Interface**: Built on Emacs `tabulated-list-mode` with sortable columns
+- **Light & Dark Theme Support**: Adaptive faces for active sections, running/exited statuses, dimmed exited containers, and port mappings
+- **Modal Editor Compatibility**: Override keymap via `emulation-mode-map-alists` so dashboard bindings take priority over modal editors such as Evil or Meow
 
 ## Requirements
 
@@ -38,50 +51,34 @@ Clone the repository and add to your Emacs config:
 
 | Command | Description |
 |---------|-------------|
-| `M-x lzdockel` | Open the Docker management interface (container view) |
-| `M-x lzdockel-containers` | List Docker containers |
-| `M-x lzdockel-images` | List Docker images |
+| `M-x lzdockel` | Open the Docker management dashboard |
+| `M-x lzdockel-dashboard` | Open the unified dashboard buffer (`*lzdockel-dashboard*`) |
 
 ### Keybindings
 
-#### Container View
+#### Dashboard (`lzdockel-dashboard-mode`)
+
+| Key | Action | Scope |
+|-----|--------|-------|
+| `TAB` | Move to next section | All sections |
+| `S-TAB` / `<backtab>` | Move to previous section | All sections |
+| `g` | Refresh all sections | All sections |
+| `RET` | View container logs | Containers |
+| `a` | Attach to container in `eshell` (with confirmation) | Containers |
+| `r` | Restart container at point (with confirmation) | Containers |
+| `s` | Stop container at point (with confirmation) | Containers |
+| `i` | Inspect item at point (pretty-printed JSON) | All sections |
+| `d` | Delete item at point (with confirmation) | All sections |
+| `q` | Quit buffer | All sections |
+
+#### Logs & Inspect Buffers (`lzdockel-logs-mode`, `lzdockel-inspect-mode`)
 
 | Key | Action |
 |-----|--------|
-| `g` | Refresh list |
-| `R` | Restart container at point |
-| `S` | Stop container at point |
-| `D` | Remove container at point (with confirmation) |
-| `RET` | View container logs |
-| `i` | Switch to image view |
+| `g` | Refresh output |
 | `q` | Quit buffer |
-
-#### Image View
-
-| Key | Action |
-|-----|--------|
-| `g` | Refresh list |
-| `D` | Delete image at point (with confirmation) |
-| `C` | Switch to container view |
-| `q` | Quit buffer |
-
-## Architecture
-
-```
-lzdockel/
-├── lzdockel.el               # Entry point + autoloads
-├── lzdockel-core.el          # Docker CLI, JSON parsing, helpers
-├── lzdockel-container.el     # Container list mode + actions
-├── lzdockel-image.el         # Image list mode + actions
-├── lzdockel-faces.el         # Face definitions
-└── docs/
-    ├── plans/mvp-1.md        # MVP 1 design plan
-    └── developing.md         # Development guide
-```
 
 ## Development
-
-See [docs/developing.md](docs/developing.md) for the development workflow, testing checklist, and debugging tips.
 
 ### Quick Start
 
