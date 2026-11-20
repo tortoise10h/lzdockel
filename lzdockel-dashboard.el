@@ -26,6 +26,10 @@
 (defvar lzdockel-dashboard-section-bounds nil
   "Alist storing buffer positions for each section: (SECTION-INDEX . (START . END)).")
 
+(defvar-local lzdockel-dashboard--error-state nil
+  "Non-nil when displaying a Docker unavailable error screen.
+Holds a plist (:reason SYMBOL :detail STRING-OR-NIL).")
+
 (defvar lzdockel-dashboard-item-keymap-entries
   '((?a . (("Containers" . lzdockel-container-attach)))
     (?d . (("Containers" . lzdockel-container-delete)
@@ -42,13 +46,14 @@
 
 (defun lzdockel-dashboard-dispatch-action (key)
   "Execute the action bound to KEY for the item and section at point."
-  (let* ((item (lzdockel-dashboard--item-at-point))
-         (section-name (lzdockel-dashboard--section-name-at-point))
-         (entries (cdr (assoc key lzdockel-dashboard-item-keymap-entries)))
-         (action-fn (and section-name
-                         (cdr (assoc section-name entries)))))
-    (when (and item action-fn)
-      (funcall action-fn item #'lzdockel-dashboard-refresh))))
+  (unless lzdockel-dashboard--error-state
+    (let* ((item (lzdockel-dashboard--item-at-point))
+           (section-name (lzdockel-dashboard--section-name-at-point))
+           (entries (cdr (assoc key lzdockel-dashboard-item-keymap-entries)))
+           (action-fn (and section-name
+                           (cdr (assoc section-name entries)))))
+      (when (and item action-fn)
+        (funcall action-fn item #'lzdockel-dashboard-refresh)))))
 
 (defvar lzdockel-dashboard-mode-map
   (let ((map (make-sparse-keymap)))
@@ -120,6 +125,7 @@ like evil, meow, etc. via `emulation-mode-map-alists'.")
   (setq-local lzdockel-dashboard-current-section 0)
   (setq-local lzdockel-dashboard-data nil)
   (setq-local lzdockel-dashboard-section-bounds nil)
+  (setq-local lzdockel-dashboard--error-state nil)
   (setq-local lzdockel-dashboard--override-active t))
 
 (defun lzdockel-dashboard--section-header (title index)
@@ -254,14 +260,87 @@ like evil, meow, etc. via `emulation-mode-map-alists'.")
     (setq lzdockel-dashboard-section-bounds (nreverse lzdockel-dashboard-section-bounds))
     (goto-char (point-min))))
 
-(defun lzdockel-dashboard-fetch-all ()
-  "Fetch data for all sections and render the dashboard."
+(defun lzdockel-dashboard--wrap-text (text max-width)
+  "Wrap TEXT into a list of lines each at most MAX-WIDTH columns wide."
+  (let ((words (split-string text "[ \t\n]+" t))
+        (lines '())
+        (current ""))
+    (dolist (word words)
+      (let ((candidate (if (string-empty-p current)
+                           word
+                         (concat current " " word))))
+        (if (<= (string-width candidate) max-width)
+            (setq current candidate)
+          (unless (string-empty-p current)
+            (push current lines))
+          (if (<= (string-width word) max-width)
+              (setq current word)
+            (push (truncate-string-to-width word max-width nil nil "…") lines)
+            (setq current "")))))
+    (unless (string-empty-p current)
+      (push current lines))
+    (or (nreverse lines) '(""))))
+
+(defun lzdockel-dashboard-render-error (reason &optional detail)
+  "Render a styled Docker unavailable error screen for REASON and DETAIL."
+  (let* ((inhibit-read-only t)
+         (text-width 68)
+         (missing-cli (eq reason 'missing-cli))
+         (title (if missing-cli
+                    "Docker CLI Not Found"
+                  "Docker Engine Not Running"))
+         (summary-lines
+          (if missing-cli
+              '("LZDockel could not find the `docker' executable on your"
+                "Emacs `exec-path' / `PATH'.")
+            '("The Docker CLI is installed, but the Docker daemon could"
+              "not be reached.")))
+         (steps
+          (if missing-cli
+              (list (concat "• Install " (propertize "Docker Desktop" 'face 'lzdockel-error-heading)
+                            ", " (propertize "OrbStack" 'face 'lzdockel-error-heading)
+                            ", or Docker Engine")
+                    (concat "• Ensure " (propertize "docker" 'face 'lzdockel-error-code)
+                            " is on your " (propertize "PATH" 'face 'lzdockel-error-code)
+                            " / " (propertize "exec-path" 'face 'lzdockel-error-code))
+                    (concat "• On macOS GUI Emacs, try "
+                            (propertize "exec-path-from-shell" 'face 'lzdockel-error-code)))
+            (list (concat "• macOS: Start " (propertize "Docker Desktop" 'face 'lzdockel-error-heading)
+                          ", " (propertize "OrbStack" 'face 'lzdockel-error-heading)
+                          ", or run " (propertize "colima start" 'face 'lzdockel-error-code))
+                  (concat "• Linux: Run "
+                          (propertize "sudo systemctl start docker" 'face 'lzdockel-error-code))))))
+    (erase-buffer)
+    (setq lzdockel-dashboard-section-bounds nil
+          lzdockel-dashboard-data nil)
+    (insert (lzdockel-dashboard--ascii-art) "\n\n")
+    (insert "  " (propertize (concat "✖  " title) 'face 'lzdockel-error-badge) "\n\n")
+    (dolist (line summary-lines)
+      (insert "  " line "\n"))
+    (when (and (not missing-cli) detail (not (string-empty-p detail)))
+      (insert "\n  " (propertize "Detail:" 'face 'lzdockel-error-heading) "\n")
+      (dolist (dline (lzdockel-dashboard--wrap-text detail text-width))
+        (insert "  " (propertize dline 'face 'lzdockel-error-detail) "\n")))
+    (insert "\n  " (propertize "How to fix:" 'face 'lzdockel-error-heading) "\n")
+    (dolist (step steps)
+      (insert "  " step "\n"))
+    (insert "\n  "
+            (propertize " g " 'face 'lzdockel-keycap)
+            (propertize " Retry" 'face 'lzdockel-hint-label)
+            "    "
+            (propertize " q " 'face 'lzdockel-keycap)
+            (propertize " Quit" 'face 'lzdockel-hint-label)
+            "\n")
+    (goto-char (point-min))))
+
+(defun lzdockel-dashboard--fetch-sections ()
+  "Fetch data for all dashboard sections and render the dashboard."
   (let ((pending (length lzdockel-dashboard-sections))
         (results '()))
     (dotimes (i (length lzdockel-dashboard-sections))
       (let ((section-idx i)
             (module (cdr (nth i lzdockel-dashboard-sections))))
-          (let ((fetch-fn (intern (format "%s-list" (symbol-name module)))))
+        (let ((fetch-fn (intern (format "%s-list" (symbol-name module)))))
           (funcall fetch-fn
                    (lambda (data)
                      (when (eq section-idx 0)
@@ -271,8 +350,23 @@ like evil, meow, etc. via `emulation-mode-map-alists'.")
                      (when (zerop pending)
                        (when (buffer-live-p (get-buffer "*lzdockel-dashboard*"))
                          (with-current-buffer "*lzdockel-dashboard*"
-                           (setq lzdockel-dashboard-data (nreverse results))
+                           (setq lzdockel-dashboard--error-state nil
+                                 lzdockel-dashboard-data (nreverse results))
                            (lzdockel-dashboard-render)))))))))))
+
+(defun lzdockel-dashboard-fetch-all ()
+  "Check Docker availability, then fetch data for all sections and render."
+  (lzdockel-core-check-docker
+   (lambda (status detail)
+     (when (buffer-live-p (get-buffer "*lzdockel-dashboard*"))
+       (with-current-buffer "*lzdockel-dashboard*"
+         (if (eq status 'ok)
+             (progn
+               (setq lzdockel-dashboard--error-state nil)
+               (lzdockel-dashboard--fetch-sections))
+           (setq lzdockel-dashboard--error-state
+                 (list :reason status :detail detail))
+           (lzdockel-dashboard-render-error status detail)))))))
 
 (defun lzdockel-dashboard-refresh ()
   "Refresh all dashboard data."
@@ -282,20 +376,22 @@ like evil, meow, etc. via `emulation-mode-map-alists'.")
 (defun lzdockel-dashboard-next-section ()
   "Move to the next section."
   (interactive)
-  (let ((count (length lzdockel-dashboard-sections)))
-    (setq lzdockel-dashboard-current-section
-          (mod (1+ lzdockel-dashboard-current-section) count)))
-  (lzdockel-dashboard-render)
-  (lzdockel-dashboard-goto-section lzdockel-dashboard-current-section))
+  (unless lzdockel-dashboard--error-state
+    (let ((count (length lzdockel-dashboard-sections)))
+      (setq lzdockel-dashboard-current-section
+            (mod (1+ lzdockel-dashboard-current-section) count)))
+    (lzdockel-dashboard-render)
+    (lzdockel-dashboard-goto-section lzdockel-dashboard-current-section)))
 
 (defun lzdockel-dashboard-prev-section ()
   "Move to the previous section."
   (interactive)
-  (let ((count (length lzdockel-dashboard-sections)))
-    (setq lzdockel-dashboard-current-section
-          (mod (1- lzdockel-dashboard-current-section) count)))
-  (lzdockel-dashboard-render)
-  (lzdockel-dashboard-goto-section lzdockel-dashboard-current-section))
+  (unless lzdockel-dashboard--error-state
+    (let ((count (length lzdockel-dashboard-sections)))
+      (setq lzdockel-dashboard-current-section
+            (mod (1- lzdockel-dashboard-current-section) count)))
+    (lzdockel-dashboard-render)
+    (lzdockel-dashboard-goto-section lzdockel-dashboard-current-section)))
 
 (defun lzdockel-dashboard-goto-section (index)
   "Move point to the first item of section at INDEX."
@@ -339,10 +435,11 @@ line-beginning-position."
   "Open the item at point.
 For items in the Containers section, display container logs."
   (interactive)
-  (let ((item (lzdockel-dashboard--item-at-point))
-        (section-name (lzdockel-dashboard--section-name-at-point)))
-    (when (and item (string= section-name "Containers"))
-      (lzdockel-container-logs item))))
+  (unless lzdockel-dashboard--error-state
+    (let ((item (lzdockel-dashboard--item-at-point))
+          (section-name (lzdockel-dashboard--section-name-at-point)))
+      (when (and item (string= section-name "Containers"))
+        (lzdockel-container-logs item)))))
 
 ;;;###autoload
 (defun lzdockel-dashboard ()

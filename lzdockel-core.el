@@ -74,5 +74,50 @@ MESSAGE is the stderr output on failure or a success string."
                      (kill-buffer (process-buffer proc))
                      (kill-buffer err-buffer)))))))
 
+(defun lzdockel-core-check-docker (callback)
+  "Check whether the Docker CLI and daemon are available.
+Calls CALLBACK asynchronously (or immediately when CLI is missing)
+with two arguments: (STATUS DETAIL).
+STATUS is one of:
+  `ok'          - Docker CLI exists and daemon is reachable.
+  `missing-cli' - `docker' executable was not found on `exec-path'.
+  `daemon-down' - `docker' executable exists, but daemon check failed.
+DETAIL is a trimmed error string when available, or nil."
+  (if (not (executable-find "docker"))
+      (funcall callback 'missing-cli nil)
+    (let ((process-connection-type nil)
+          (buffer (generate-new-buffer " *lzdockel-docker-check*"))
+          (err-buffer (generate-new-buffer " *lzdockel-docker-check-err*")))
+      (condition-case err
+          (make-process
+           :name "lzdockel-docker-check"
+           :buffer buffer
+           :command '("docker" "info" "--format" "{{.ServerVersion}}")
+           :stderr err-buffer
+           :sentinel
+           (lambda (proc _event)
+             (when (memq (process-status proc) '(exit signal))
+               (let* ((ok (and (eq (process-status proc) 'exit)
+                               (zerop (process-exit-status proc))))
+                      (stderr (when (buffer-live-p err-buffer)
+                                (with-current-buffer err-buffer
+                                  (string-trim (buffer-string)))))
+                      (stdout (when (buffer-live-p buffer)
+                                (with-current-buffer buffer
+                                  (string-trim (buffer-string)))))
+                      (detail (cond
+                               ((and stderr (not (string-empty-p stderr))) stderr)
+                               ((and stdout (not (string-empty-p stdout))) stdout)
+                               (t nil))))
+                 (when (buffer-live-p buffer) (kill-buffer buffer))
+                 (when (buffer-live-p err-buffer) (kill-buffer err-buffer))
+                 (if ok
+                     (funcall callback 'ok nil)
+                   (funcall callback 'daemon-down detail))))))
+        (file-error
+         (when (buffer-live-p buffer) (kill-buffer buffer))
+         (when (buffer-live-p err-buffer) (kill-buffer err-buffer))
+         (funcall callback 'missing-cli (error-message-string err)))))))
+
 (provide 'lzdockel-core)
 ;;; lzdockel-core.el ends here
