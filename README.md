@@ -2,12 +2,6 @@
 
 Native Emacs interface for Docker management, inspired by [lazydocker](https://github.com/jesseduffield/lazydocker).
 
-<img width="1620" height="1045" alt="file-60d2272275a8f0c8c45b32429621d8b9" src="https://github.com/user-attachments/assets/044dd227-0af6-4f0c-95f5-cecf3bcdcb47" />
-
-<img width="1620" height="1045" alt="file-f15294c2d745d8befce3543d47594bae" src="https://github.com/user-attachments/assets/18725827-5359-4d1a-9153-5597a4a326c6" />
-
-
-
 ## Table of Contents
 
 - [Features](#features)
@@ -17,6 +11,10 @@ Native Emacs interface for Docker management, inspired by [lazydocker](https://g
   - [Keybindings](#keybindings)
 - [Development](#development)
 - [License](#license)
+
+<img width="1620" height="1045" alt="file-60d2272275a8f0c8c45b32429621d8b9" src="https://github.com/user-attachments/assets/044dd227-0af6-4f0c-95f5-cecf3bcdcb47" />
+
+<img width="1620" height="1045" alt="file-f15294c2d745d8befce3543d47594bae" src="https://github.com/user-attachments/assets/18725827-5359-4d1a-9153-5597a4a326c6" />
 
 ## Features
 
@@ -29,6 +27,9 @@ Native Emacs interface for Docker management, inspired by [lazydocker](https://g
 - **Light & Dark Theme Support**: Adaptive faces for active sections, running/exited statuses, dimmed exited containers, and port mappings
 - **Modal Editor Compatibility**: Override keymap via `emulation-mode-map-alists` so dashboard bindings take priority over modal editors such as Evil or Meow
 
+> [!NOTE]
+> The `lzdockel` dashboard does not auto-refresh or live-update; press `g` to refresh the state to the latest.
+
 ## Requirements
 
 - Emacs >= 28.1
@@ -36,21 +37,44 @@ Native Emacs interface for Docker management, inspired by [lazydocker](https://g
 
 ## Installation
 
+### Using `use-package` (Emacs 30+)
+
+```elisp
+(use-package lzdockel
+  :vc (:url "https://github.com/tortoise10h/lzdockel"
+       :rev :newest)
+  :bind ("C-c d" . lzdockel))
+```
+
+### Using `straight.el`
+
+With `straight-use-package`:
+
+```elisp
+(straight-use-package
+ '(lzdockel :type git :host github :repo "tortoise10h/lzdockel"))
+(require 'lzdockel)
+```
+
+Or with `use-package`:
+
+```elisp
+(use-package lzdockel
+  :straight (:type git :host github :repo "tortoise10h/lzdockel")
+  :bind ("C-c d" . lzdockel))
+```
+
 ### Manual
 
-Clone the repository and add to your Emacs config:
+Clone the repository and add it to your Emacs `load-path`:
+
+```sh
+git clone https://github.com/tortoise10h/lzdockel.git /path/to/lzdockel
+```
 
 ```elisp
 (add-to-list 'load-path "/path/to/lzdockel")
 (require 'lzdockel)
-```
-
-### Using straight.el
-
-```elisp
-(use-package lzdockel
-  :straight (:type git :host github :repo "yourusername/lzdockel")
-  :bind ("C-c d" . lzdockel))
 ```
 
 ## Usage
@@ -61,6 +85,8 @@ Clone the repository and add to your Emacs config:
 | `M-x lzdockel-dashboard` | Open the unified dashboard buffer (`*lzdockel-dashboard*`) |
 
 ### Keybindings
+
+Move up and down using standard Emacs navigation bindings (such as `C-n` / `C-p` or arrow keys). Navigation and dashboard keybindings also work smoothly with modal editing packages such as Evil or Meow.
 
 #### Dashboard (`lzdockel-dashboard-mode`)
 
