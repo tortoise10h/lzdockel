@@ -20,7 +20,7 @@ Native Emacs interface for Docker management, inspired by [lazydocker](https://g
 
 - **Unified Dashboard**: Single `*lzdockel-dashboard*` buffer displaying **Containers**, **Images**, **Volumes**, and **Networks** in navigable sections
 - **Container Management**: List containers (running sorted first), restart, stop, delete (with confirmation), view logs, inspect, and attach via `eshell` (`docker exec -it <id> /bin/sh`)
-- **Image, Volume & Network Management**: List, inspect, and delete (with confirmation) Docker images, volumes, and networks
+- **Image, Volume & Network Management**: List, pull (from Docker Hub), inspect, and delete (with confirmation) Docker images, volumes, and networks
 - **Container Logs Viewer**: Dedicated `lzdockel-logs-mode` buffer with ANSI color rendering and automatic live streaming (`-f`) for running containers
 - **Inspect Viewer**: Dedicated `lzdockel-inspect-mode` buffer displaying pretty-printed JSON from `docker <kind> inspect` for containers, images, volumes, and networks
 - **Async Operations**: Non-blocking Docker CLI execution
@@ -95,6 +95,8 @@ Move up and down using standard Emacs navigation bindings (such as `C-n` / `C-p`
 | `TAB` | Move to next section | All sections |
 | `S-TAB` / `<backtab>` | Move to previous section | All sections |
 | `g` | Refresh all sections | All sections |
+| `p` | Pull image from Docker Hub | All sections |
+| `P` | View live image pull log (`*lzdockel-pull-log*`) | All sections |
 | `RET` | View container logs | Containers |
 | `a` | Attach to container in `eshell` (with confirmation) | Containers |
 | `r` | Restart container at point (with confirmation) | Containers |
