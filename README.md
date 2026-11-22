@@ -93,17 +93,18 @@ Move up and down using standard Emacs navigation bindings (such as `C-n` / `C-p`
 | Key | Action | Scope |
 |-----|--------|-------|
 | `TAB` | Move to next section | All sections |
-| `S-TAB` / `<backtab>` | Move to previous section | All sections |
+| `S-<tab>` / `<backtab>` | Move to previous section | All sections |
 | `g` | Refresh all sections | All sections |
 | `p` | Pull image from Docker Hub | All sections |
 | `P` | View live image pull log (`*lzdockel-pull-log*`) | All sections |
-| `RET` | View container logs | Containers |
+| `RET` / `<return>` | View container logs | Containers |
 | `a` | Attach to container in `eshell` (with confirmation) | Containers |
 | `r` | Restart container at point (with confirmation) | Containers |
 | `s` | Stop container at point (with confirmation) | Containers |
 | `i` | Inspect item at point (pretty-printed JSON) | All sections |
 | `d` | Delete item at point (with confirmation) | All sections |
 | `q` | Quit buffer | All sections |
+| `?` | Show help listing all dashboard keybindings | All sections |
 
 #### Logs & Inspect Buffers (`lzdockel-logs-mode`, `lzdockel-inspect-mode`)
 
