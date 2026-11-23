@@ -12,9 +12,10 @@ Native Emacs interface for Docker management, inspired by [lazydocker](https://g
 - [Development](#development)
 - [License](#license)
 
-<img width="1620" height="1045" alt="file-60d2272275a8f0c8c45b32429621d8b9" src="https://github.com/user-attachments/assets/044dd227-0af6-4f0c-95f5-cecf3bcdcb47" />
+<img width="1620" height="1045" alt="image" src="https://github.com/user-attachments/assets/1649fd30-da9e-4919-999c-a9f66b69d0a6" />
 
-<img width="1620" height="1045" alt="file-f15294c2d745d8befce3543d47594bae" src="https://github.com/user-attachments/assets/18725827-5359-4d1a-9153-5597a4a326c6" />
+<img width="1623" height="1054" alt="image" src="https://github.com/user-attachments/assets/e07ddeea-e772-4688-b7c0-5f02428523c4" />
+
 
 ## Features
 
