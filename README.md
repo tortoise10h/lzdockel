@@ -104,6 +104,9 @@ Move up and down using standard Emacs navigation bindings (such as `C-n` / `C-p`
 | `s` | Stop container at point (with confirmation) | Containers |
 | `i` | Inspect item at point (pretty-printed JSON) | All sections |
 | `d` | Delete item at point (with confirmation) | All sections |
+| `c i` | Copy item ID to kill ring | Containers, Images, Networks |
+| `c n` | Copy item name to kill ring | All sections |
+| `c p` | Copy open host port to kill ring | Containers |
 | `q` | Quit buffer | All sections |
 | `?` | Show help listing all dashboard keybindings | All sections |
 

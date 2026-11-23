@@ -126,6 +126,11 @@ Each entry has the form (KEY :min MIN :max MAX :weight WEIGHT).")
     (define-key map (kbd "i") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?i)))
     (define-key map (kbd "r") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?r)))
     (define-key map (kbd "s") (lambda () (interactive) (lzdockel-dashboard-dispatch-action ?s)))
+    (let ((copy-map (make-sparse-keymap)))
+      (define-key copy-map (kbd "i") '("Copy ID" . lzdockel-dashboard-copy-id))
+      (define-key copy-map (kbd "n") '("Copy name" . lzdockel-dashboard-copy-name))
+      (define-key copy-map (kbd "p") '("Copy port" . lzdockel-dashboard-copy-port))
+      (define-key map (kbd "c") (cons "Copy" copy-map)))
     (define-key map (kbd "?") #'lzdockel-dashboard-help)
     map)
   "Keymap for `lzdockel-dashboard-mode'.")
@@ -919,6 +924,79 @@ For items in the Containers section, display container logs."
       (when (and item (string= section-name "Containers"))
         (lzdockel-container-logs item)))))
 
+(defun lzdockel-dashboard--item-name (item section)
+  "Return the copyable name string for ITEM in SECTION."
+  (pcase section
+    ("Containers" (lzdockel-core-get item 'Names))
+    ((or "Volumes" "Networks") (lzdockel-core-get item 'Name))
+    ("Images"
+     (let ((repo (lzdockel-core-get item 'Repository))
+           (tag (lzdockel-core-get item 'Tag)))
+       (cond
+        ((string-empty-p repo) "")
+        ((or (string-empty-p tag) (string= tag "<none>")) repo)
+        (t (format "%s:%s" repo tag)))))
+    (_ "")))
+
+(defun lzdockel-dashboard--copy-with-item (fn)
+  "Invoke FN with (item section) at point when not in error state.
+Notifies \"No item at point\" if point is not on an item line."
+  (unless lzdockel-dashboard--error-state
+    (let ((item (lzdockel-dashboard--item-at-point))
+          (section (lzdockel-dashboard--section-name-at-point)))
+      (if (not item)
+          (message "No item at point")
+        (funcall fn item section)))))
+
+(defun lzdockel-dashboard--copy-string (label value)
+  "Copy VALUE to the kill ring and display a confirmation for LABEL."
+  (kill-new value)
+  (message "Copied %s: %s" label value))
+
+(defun lzdockel-dashboard-copy-id ()
+  "Copy the ID of the item at point to the kill ring."
+  (interactive)
+  (lzdockel-dashboard--copy-with-item
+   (lambda (item section)
+     (if (string= section "Volumes")
+         (message "Volumes do not have an ID")
+       (let ((id (lzdockel-core-get item 'ID)))
+         (if (string-empty-p id)
+             (message "No ID for %s item" (downcase (or section "selected")))
+           (lzdockel-dashboard--copy-string "ID" id)))))))
+
+(defun lzdockel-dashboard-copy-name ()
+  "Copy the name of the item at point to the kill ring."
+  (interactive)
+  (lzdockel-dashboard--copy-with-item
+   (lambda (item section)
+     (let ((name (lzdockel-dashboard--item-name item section)))
+       (if (string-empty-p name)
+           (message "No name for %s item" (downcase (or section "selected")))
+         (lzdockel-dashboard--copy-string "name" name))))))
+
+(defun lzdockel-dashboard-copy-port ()
+  "Copy an open host port of the container at point to the kill ring."
+  (interactive)
+  (lzdockel-dashboard--copy-with-item
+   (lambda (item section)
+     (if (not (string= section "Containers"))
+         (message "Port copying is only supported for containers")
+       (let ((ports (lzdockel-format-host-ports (lzdockel-core-get item 'Ports)))
+             (label (let ((n (lzdockel-core-get item 'Names)))
+                      (if (string-empty-p n) (lzdockel-core-get item 'ID) n))))
+         (cond
+          ((null ports)
+           (message "No open host ports for container %s" label))
+          ((= (length ports) 1)
+           (lzdockel-dashboard--copy-string "port" (car ports)))
+          (t
+           (let ((chosen (completing-read
+                          (format "Copy host port for %s: " label)
+                          ports nil t nil nil (car ports))))
+             (when (and chosen (not (string-empty-p chosen)))
+               (lzdockel-dashboard--copy-string "port" chosen))))))))))
+
 (defun lzdockel-dashboard--command-description (command)
   "Return the first line of COMMAND's docstring, or its name if undocumented."
   (let ((doc (and (fboundp command) (documentation command))))
@@ -952,30 +1030,44 @@ are described from `lzdockel-dashboard-item-keymap-entries'."
     (lzdockel-dashboard--dispatch-description (aref key-desc 0)))
    (t "Dashboard action.")))
 
+(defun lzdockel-dashboard--collect-bindings (keymap &optional prefix)
+  "Collect (KEY-DESC . DESCRIPTION) pairs from KEYMAP, recursing into prefix maps.
+PREFIX is a vector of prefix keys accumulated so far."
+  (let ((bindings '()))
+    (map-keymap
+     (lambda (key binding)
+       (let* ((key-vec (vconcat prefix (vector key)))
+              (key-desc (key-description key-vec))
+              (target (if (and (consp binding) (stringp (car binding)))
+                          (cdr binding)
+                        binding)))
+         (if (keymapp target)
+             (dolist (sub (nreverse (lzdockel-dashboard--collect-bindings target key-vec)))
+               (push sub bindings))
+           (push (cons key-desc
+                       (lzdockel-dashboard--binding-description key-desc target))
+                 bindings))))
+     keymap)
+    bindings))
+
 (defun lzdockel-dashboard--help-content ()
   "Return the text listing every binding of `lzdockel-dashboard-mode-map'.
 The list is generated by walking the keymap itself, so it cannot drift
 from the actual dashboard bindings."
-  (let ((bindings '()))
-    (map-keymap (lambda (key binding)
-                  (let ((key-desc (key-description (vector key))))
-                    (push (cons key-desc
-                                (lzdockel-dashboard--binding-description key-desc binding))
-                          bindings)))
-                lzdockel-dashboard-mode-map)
-    (let ((width (apply #'max 1 (mapcar (lambda (b) (string-width (car b))) bindings))))
-      (concat
-       (lzdockel-dashboard--ascii-art) " Dashboard Keybindings\n\n"
-       (mapconcat (lambda (b)
-                    (format "  %s%s  %s"
-                            (propertize (car b) 'face 'lzdockel-keycap)
-                            (make-string (- width (string-width (car b))) ?\s)
-                            (cdr b)))
-                  bindings "\n")
-       "\n\n  "
-       (propertize " q " 'face 'lzdockel-keycap)
-       (propertize " Close" 'face 'lzdockel-hint-label)
-       "\n"))))
+  (let* ((bindings (lzdockel-dashboard--collect-bindings lzdockel-dashboard-mode-map))
+         (width (apply #'max 1 (mapcar (lambda (b) (string-width (car b))) bindings))))
+    (concat
+     (lzdockel-dashboard--ascii-art) " Dashboard Keybindings\n\n"
+     (mapconcat (lambda (b)
+                  (format "  %s%s  %s"
+                          (propertize (car b) 'face 'lzdockel-keycap)
+                          (make-string (- width (string-width (car b))) ?\s)
+                          (cdr b)))
+                bindings "\n")
+     "\n\n  "
+     (propertize " q " 'face 'lzdockel-keycap)
+     (propertize " Close" 'face 'lzdockel-hint-label)
+     "\n")))
 
 (defun lzdockel-dashboard-help ()
   "Display a list of all dashboard keybindings."

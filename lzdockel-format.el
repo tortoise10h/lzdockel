@@ -2,6 +2,27 @@
 
 ;;; Code:
 
+(defconst lzdockel-format--port-mapping-regexp
+  "\\(?:[0-9.]+\\|\\[[^]]+\\]\\|::\\):\\([0-9]+\\(?:-[0-9]+\\)?\\)->\\([0-9]+\\(?:-[0-9]+\\)?\\)/\\(.*\\)"
+  "Regexp matching a Docker host-to-container port mapping entry.
+Group 1 is the host port (or range), group 2 is the container port,
+and group 3 is the protocol.")
+
+(defun lzdockel-format-host-ports (ports)
+  "Extract unique open host ports from a Docker PORTS string.
+Ignores container-only exposed ports without host bindings (no `->')
+and deduplicates IPv4/IPv6 duplicates, preserving order."
+  (if (or (null ports) (string-empty-p ports))
+      nil
+    (let ((entries (split-string ports ", *" t))
+          (result '()))
+      (dolist (entry entries)
+        (when (string-match lzdockel-format--port-mapping-regexp entry)
+          (let ((host-port (match-string 1 entry)))
+            (unless (member host-port result)
+              (push host-port result)))))
+      (nreverse result))))
+
 (defun lzdockel-format-ports (ports &optional max-width)
   "Simplify Docker PORTS string for compact display.
 Extracts host-mapped ports and deduplicates IPv4/IPv6.
@@ -16,9 +37,7 @@ is nil, return the full simplified port string."
            (seen '()))
       (dolist (entry entries)
         (cond
-         ((string-match
-           "\\(?:[0-9.]+\\|\\[[^]]+\\]\\|::\\):\\([0-9]+\\(?:-[0-9]+\\)?\\)->\\([0-9]+\\(?:-[0-9]+\\)?\\)/\\(.*\\)"
-           entry)
+         ((string-match lzdockel-format--port-mapping-regexp entry)
           (let ((key (concat (match-string 1 entry) ":" (match-string 2 entry))))
             (unless (member key seen)
               (push key seen)

@@ -433,5 +433,178 @@ Returns a plist (:header HEADER-LINE :rows ROW-LINES)."
         (should (= (lzdockel-test--display-col-of (nth 0 rows) "ec1b827a") name-col))
         (should (= (lzdockel-test--display-col-of (nth 1 rows) "kafka_data") name-col))))))
 
+(defun lzdockel-test--setup-full-dashboard ()
+  "Populate current buffer with representative items for all 4 sections."
+  (lzdockel-dashboard-mode)
+  (setq lzdockel-dashboard-data
+        (list
+         (cons 0 (list
+                  `((ID . "cont-111")
+                    (Image . "nginx:latest")
+                    (RunningFor . "1 hour ago")
+                    (Ports . "0.0.0.0:8080->80/tcp, [::]:8080->80/tcp")
+                    (Names . "web-single")
+                    (Status . "Up 1 hour"))
+                  `((ID . "cont-222")
+                    (Image . "envoy:latest")
+                    (RunningFor . "2 hours ago")
+                    (Ports . "0.0.0.0:8083->8083/tcp, [::]:8083->8083/tcp, 127.0.0.1:8443->443/tcp, 9090/tcp")
+                    (Names . "web-multi")
+                    (Status . "Up 2 hours"))
+                  `((ID . "cont-333")
+                    (Image . "redis:7")
+                    (RunningFor . "3 hours ago")
+                    (Ports . "6379/tcp")
+                    (Names . "redis-exposed-only")
+                    (Status . "Up 3 hours"))))
+         (cons 1 (list
+                  `((ID . "img-111")
+                    (Repository . "postgres")
+                    (Tag . "16-alpine")
+                    (Size . "240MB"))
+                  `((ID . "img-222")
+                    (Repository . "dangling-repo")
+                    (Tag . "<none>")
+                    (Size . "10MB"))))
+         (cons 2 (list
+                  `((Driver . "local")
+                    (Name . "pgdata"))))
+         (cons 3 (list
+                  `((ID . "net-111")
+                    (Name . "app-network")
+                    (Driver . "bridge")
+                    (Scope . "local"))))))
+  (lzdockel-dashboard-render 120))
+
+(defun lzdockel-test--goto-item-matching (needle)
+  "Move point to the first dashboard line containing NEEDLE."
+  (goto-char (point-min))
+  (search-forward needle)
+  (beginning-of-line))
+
+(defun lzdockel-test--capture-message (fn)
+  "Call FN and return the message text written to `*Messages*' during FN."
+  (with-current-buffer "*Messages*"
+    (let ((inhibit-read-only t))
+      (erase-buffer)))
+  (funcall fn)
+  (with-current-buffer "*Messages*"
+    (string-trim (buffer-string))))
+
+(ert-deftest lzdockel-format-host-ports-extraction ()
+  (should (equal (lzdockel-format-host-ports nil) nil))
+  (should (equal (lzdockel-format-host-ports "") nil))
+  (should (equal (lzdockel-format-host-ports "80/tcp, 443/tcp") nil))
+  (should (equal (lzdockel-format-host-ports "0.0.0.0:8080->80/tcp, [::]:8080->80/tcp")
+                 '("8080")))
+  (should (equal (lzdockel-format-host-ports
+                  "0.0.0.0:8083->8083/tcp, [::]:8083->8083/tcp, 127.0.0.1:8443->443/tcp, 9090/tcp, 0.0.0.0:8000-8010->8000-8010/udp")
+                 '("8083" "8443" "8000-8010"))))
+
+(ert-deftest lzdockel-dashboard-copy-keybindings-registered ()
+  (should (eq (lookup-key lzdockel-dashboard-mode-map (kbd "c i"))
+              #'lzdockel-dashboard-copy-id))
+  (should (eq (lookup-key lzdockel-dashboard-mode-map (kbd "c n"))
+              #'lzdockel-dashboard-copy-name))
+  (should (eq (lookup-key lzdockel-dashboard-mode-map (kbd "c p"))
+              #'lzdockel-dashboard-copy-port))
+  ;; Verify which-key / Emacs keymap labels on the `c' prefix and sub-bindings.
+  (let ((c-entry (assq ?c (cdr lzdockel-dashboard-mode-map))))
+    (should (equal (car (cdr c-entry)) "Copy"))
+    (let ((copy-map (cdr (cdr c-entry))))
+      (should (equal (car (cdr (assq ?i (cdr copy-map)))) "Copy ID"))
+      (should (equal (car (cdr (assq ?n (cdr copy-map)))) "Copy name"))
+      (should (equal (car (cdr (assq ?p (cdr copy-map)))) "Copy port")))))
+
+(ert-deftest lzdockel-dashboard-copy-id-all-sections ()
+  (with-temp-buffer
+    (lzdockel-test--setup-full-dashboard)
+    ;; Containers, Images, Networks copy ID.
+    (dolist (case '(("web-single" . "cont-111")
+                    ("postgres" . "img-111")
+                    ("app-network" . "net-111")))
+      (let ((kill-ring nil))
+        (lzdockel-test--goto-item-matching (car case))
+        (let ((msg (lzdockel-test--capture-message #'lzdockel-dashboard-copy-id)))
+          (should (equal (car kill-ring) (cdr case)))
+          (should (string-match-p (regexp-quote (cdr case)) msg)))))
+    ;; Volumes have no ID: do not copy and notify clearly.
+    (let ((kill-ring '("keep-me")))
+      (lzdockel-test--goto-item-matching "pgdata")
+      (let ((msg (lzdockel-test--capture-message #'lzdockel-dashboard-copy-id)))
+        (should (equal (car kill-ring) "keep-me"))
+        (should (string-match-p "Volumes do not have an ID" msg))))
+    ;; Non-item line: notify "No item at point".
+    (let ((kill-ring '("keep-me")))
+      (goto-char (point-min))
+      (let ((msg (lzdockel-test--capture-message #'lzdockel-dashboard-copy-id)))
+        (should (equal (car kill-ring) "keep-me"))
+        (should (equal msg "No item at point"))))
+    ;; Error state: no-op.
+    (let ((kill-ring '("keep-me"))
+          (lzdockel-dashboard--error-state '(:reason daemon-down :detail "down")))
+      (lzdockel-test--goto-item-matching "web-single")
+      (lzdockel-dashboard-copy-id)
+      (should (equal (car kill-ring) "keep-me")))))
+
+(ert-deftest lzdockel-dashboard-copy-name-all-sections ()
+  (with-temp-buffer
+    (lzdockel-test--setup-full-dashboard)
+    (dolist (case '(("cont-111" . "web-single")
+                    ("img-111" . "postgres:16-alpine")
+                    ("img-222" . "dangling-repo")
+                    ("pgdata" . "pgdata")
+                    ("net-111" . "app-network")))
+      (let ((kill-ring nil))
+        (lzdockel-test--goto-item-matching (car case))
+        (let ((msg (lzdockel-test--capture-message #'lzdockel-dashboard-copy-name)))
+          (should (equal (car kill-ring) (cdr case)))
+          (should (string-match-p (regexp-quote (cdr case)) msg)))))))
+
+(ert-deftest lzdockel-dashboard-copy-port-cases ()
+  (with-temp-buffer
+    (lzdockel-test--setup-full-dashboard)
+    ;; Single deduplicated host port: copied directly.
+    (let ((kill-ring nil))
+      (lzdockel-test--goto-item-matching "web-single")
+      (let ((msg (lzdockel-test--capture-message #'lzdockel-dashboard-copy-port)))
+        (should (equal (car kill-ring) "8080"))
+        (should (string-match-p "8080" msg))))
+    ;; Multiple distinct host ports: prompts with deduplicated candidates.
+    (let ((kill-ring nil)
+          (prompted-collection nil))
+      (lzdockel-test--goto-item-matching "web-multi")
+      (let ((completing-read-function
+             (lambda (_prompt collection &rest _)
+               (setq prompted-collection collection)
+               "8443")))
+        (let ((msg (lzdockel-test--capture-message #'lzdockel-dashboard-copy-port)))
+          (should (equal prompted-collection '("8083" "8443")))
+          (should (equal (car kill-ring) "8443"))
+          (should (string-match-p "8443" msg)))))
+    ;; Container with only exposed ports (no ->): notify and do not copy.
+    (let ((kill-ring '("keep-me")))
+      (lzdockel-test--goto-item-matching "redis-exposed-only")
+      (let ((msg (lzdockel-test--capture-message #'lzdockel-dashboard-copy-port)))
+        (should (equal (car kill-ring) "keep-me"))
+        (should (string-match-p "No open host ports" msg))))
+    ;; Non-container sections: notify and do not copy.
+    (dolist (needle '("postgres" "pgdata" "app-network"))
+      (let ((kill-ring '("keep-me")))
+        (lzdockel-test--goto-item-matching needle)
+        (let ((msg (lzdockel-test--capture-message #'lzdockel-dashboard-copy-port)))
+          (should (equal (car kill-ring) "keep-me"))
+          (should (equal msg "Port copying is only supported for containers")))))))
+
+(ert-deftest lzdockel-dashboard-help-lists-copy-prefix-bindings ()
+  (let ((help (lzdockel-dashboard--help-content)))
+    (should (string-match-p "c i" help))
+    (should (string-match-p "c n" help))
+    (should (string-match-p "c p" help))
+    (should (string-match-p "Copy the ID of the item at point" help))
+    (should (string-match-p "Copy the name of the item at point" help))
+    (should (string-match-p "Copy an open host port of the container at point" help))
+    (should-not (string-match-p "Dashboard action\\." help))))
+
 (provide 'lzdockel-dashboard-test)
 ;;; lzdockel-dashboard-test.el ends here
